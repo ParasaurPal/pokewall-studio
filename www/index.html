@@ -98,113 +98,240 @@
     const ac = document.getElementById("artCanvas"), ax = ac.getContext("2d", { willReadFrequently: true });
     const mc = document.getElementById("maskCanvas"), mx = mc.getContext("2d", { willReadFrequently: true });
     const st = document.getElementById("status"), ki = document.getElementById("keyIn");
-    let img = null, orig = null, genSnap = null, bMode = "mask", draw = false, eng = "local", zm = 0.95, oy = 0;
+    let img = null, orig = null, genSnap = null, bMode = "mask", draw = false, eng = "ai", zm = 0.82, oy = 0;
+
     ki.value = localStorage.getItem("gemini_api_key") || "";
-    function saveK() { localStorage.setItem("gemini_api_key", ki.value.trim()); st.textContent = "Key saved."; }
+    document.getElementById("zR").value = 82;
+    document.getElementById("zV").textContent = "82%";
+    setE(ki.value.trim() ? "ai" : "local");
+
+    function saveK() {
+      localStorage.setItem("gemini_api_key", ki.value.trim());
+      st.textContent = "API key saved.";
+      if (ki.value.trim()) setE("ai");
+    }
+
     function setE(m) {
       eng = m;
       document.getElementById("eLoc").classList.toggle("on", m === "local");
       document.getElementById("eAi").classList.toggle("on", m === "ai");
       document.getElementById("keyBox").style.display = m === "ai" ? "flex" : "none";
-      document.getElementById("badge").textContent = m === "local" ? "Local Offline" : "Gemini AI";
+      document.getElementById("badge").textContent = m === "local" ? "Local Texture Outpaint" : "Gemini AI Outpaint";
     }
+
     function setR(t) {
       document.getElementById("phone").classList.toggle("r16", !t);
       document.getElementById("rTall").classList.toggle("on", t);
       document.getElementById("rStd").classList.toggle("on", !t);
-      ac.height = mc.height = t ? 2340 : 1920; render(); autoMask();
+      ac.height = mc.height = t ? 2340 : 1920;
+      render(); autoMask();
     }
+
     function setB(m) {
       bMode = m;
       document.getElementById("bM").classList.toggle("on", m === "mask");
       document.getElementById("bE").classList.toggle("on", m === "erase");
     }
-    document.getElementById("lockBtn").onclick = (e) => { document.getElementById("lock").classList.toggle("hidden"); e.target.classList.toggle("on"); };
+
+    document.getElementById("lockBtn").onclick = (e) => {
+      document.getElementById("lock").classList.toggle("hidden");
+      e.target.classList.toggle("on");
+    };
+
     const cmp = document.getElementById("cmpBtn");
     cmp.onpointerdown = () => { if (orig) ax.putImageData(orig, 0, 0); };
     cmp.onpointerup = cmp.onpointerleave = () => { if (genSnap) ax.putImageData(genSnap, 0, 0); };
-    document.getElementById("zR").oninput = (e) => { zm = e.target.value / 100; document.getElementById("zV").textContent = e.target.value + "%"; render(); };
-    document.getElementById("yR").oninput = (e) => { oy = e.target.value / 100; document.getElementById("yV").textContent = e.target.value + "%"; render(); };
+
+    document.getElementById("zR").oninput = (e) => { zm = e.target.value / 100; document.getElementById("zV").textContent = e.target.value + "%"; render(); autoMask(); };
+    document.getElementById("yR").oninput = (e) => { oy = e.target.value / 100; document.getElementById("yV").textContent = e.target.value + "%"; render(); autoMask(); };
+
     document.getElementById("up").onchange = (e) => {
       const f = e.target.files[0]; if (!f) return;
       const i = new Image();
-      i.onload = () => { img = i; render(); autoMask(); st.textContent = "Card loaded."; };
+      i.onload = () => { img = i; render(); autoMask(); st.textContent = "Card loaded. Tap Generate to expand art."; };
       i.src = URL.createObjectURL(f);
     };
+
     function sample(n) {
       const p = [["#0f172a","#38bdf8","#818cf8","ASTRAL DRAGON","HP 320"],["#064e3b","#34d399","#fbbf24","SYLVAN FOX","HP 260"],["#450a0a","#f97316","#facc15","MAGMA DRAKE","HP 300"]][n];
       const c = document.createElement("canvas"); c.width = 750; c.height = 1050;
       const x = c.getContext("2d"), g = x.createLinearGradient(0,0,750,1050);
       g.addColorStop(0,p[0]); g.addColorStop(1,p[1]); x.fillStyle = g; x.fillRect(0,0,750,1050);
       x.fillStyle = p[2]; x.beginPath(); x.arc(375,360,160,0,Math.PI*2); x.fill();
+      for(let k=0;k<28;k++){x.fillStyle="rgba(255,255,255,0.22)";x.beginPath();x.arc((k*97)%750,(k*131)%1050,6+(k%8),0,Math.PI*2);x.fill();}
       x.strokeStyle = "#e2e8f0"; x.lineWidth = 28; x.strokeRect(14,14,722,1022);
-      x.fillStyle = "rgba(15,23,42,0.75)"; x.fillRect(45,42,660,58); x.fillRect(45,580,660,390);
+      x.fillStyle = "rgba(15,23,42,0.78)"; x.fillRect(45,42,660,58); x.fillRect(45,580,660,390);
       x.fillStyle = "#fff"; x.font = "bold 34px sans-serif"; x.fillText(p[3],65,82); x.fillText(p[4],560,82);
       x.font = "bold 28px sans-serif"; x.fillText("Celestial Flare  180+",75,650);
       const i = new Image(); i.onload = () => { img = i; render(); autoMask(); st.textContent = "Loaded " + p[3]; }; i.src = c.toDataURL();
     }
-    function rect() { const W = ac.width, H = ac.height, cw = W * zm, ch = cw * 1.4; return { cx:(W-cw)/2, cy:(H-ch)/2+(H*oy), cw, ch }; }
-    function render() {
-      const W = ac.width, H = ac.height; ax.fillStyle = "#090d16"; ax.fillRect(0,0,W,H); if (!img) return;
-      const { cx, cy, cw, ch } = rect();
-      ax.save(); ax.filter = "blur(45px) saturate(1.2)"; ax.drawImage(img,-80,-80,W+160,H+160); ax.restore();
-      ax.drawImage(img, cx, cy, cw, ch); orig = ax.getImageData(0,0,W,H); genSnap = null;
+
+    function rect() {
+      const W = ac.width, H = ac.height, cw = W * zm, ch = cw * 1.4;
+      return { cx:(W-cw)/2, cy:(H-ch)/2+(H*oy), cw, ch };
     }
+
+    function render() {
+      const W = ac.width, H = ac.height;
+      ax.fillStyle = "#090d16"; ax.fillRect(0,0,W,H);
+      if (!img) return;
+      const { cx, cy, cw, ch } = rect();
+      ax.drawImage(img, cx, cy, cw, ch);
+      orig = ax.getImageData(0,0,W,H);
+      genSnap = null;
+    }
+
     function clearM() { mx.clearRect(0,0,mc.width,mc.height); }
+
     function autoMask() {
       clearM(); const W = mc.width, H = mc.height; mx.fillStyle = "#ef4444"; if (!img) return;
       const { cx, cy, cw, ch } = rect();
-      mx.fillRect(0,0,W,Math.max(0,cy+ch*0.03)); mx.fillRect(0,cy+ch*0.96,W,H);
-      mx.fillRect(0,0,Math.max(0,cx+cw*0.04),H); mx.fillRect(cx+cw*0.96,0,W,H);
-      mx.fillRect(cx+cw*0.04,cy+ch*0.02,cw*0.92,ch*0.085); mx.fillRect(cx+cw*0.04,cy+ch*0.54,cw*0.92,ch*0.43);
+      // Mask entire outpaint surround (top, bottom, left, right borders)
+      mx.fillRect(0, 0, W, Math.max(0, cy + ch * 0.035));
+      mx.fillRect(0, cy + ch * 0.955, W, H);
+      mx.fillRect(0, 0, Math.max(0, cx + cw * 0.045), H);
+      mx.fillRect(cx + cw * 0.955, 0, W, H);
+      // Mask standard card header & lower text box
+      mx.fillRect(cx + cw * 0.045, cy + ch * 0.025, cw * 0.91, ch * 0.08);
+      mx.fillRect(cx + cw * 0.045, cy + ch * 0.55, cw * 0.91, ch * 0.41);
     }
+
     function paint(e) {
       const r = mc.getBoundingClientRect(), x = (e.clientX-r.left)*(mc.width/r.width), y = (e.clientY-r.top)*(mc.height/r.height);
       mx.globalCompositeOperation = bMode === "mask" ? "source-over" : "destination-out";
-      mx.fillStyle = "#ef4444"; mx.beginPath(); mx.arc(x,y,48,0,Math.PI*2); mx.fill(); mx.globalCompositeOperation = "source-over";
+      mx.fillStyle = "#ef4444"; mx.beginPath(); mx.arc(x,y,52,0,Math.PI*2); mx.fill(); mx.globalCompositeOperation = "source-over";
     }
     mc.onpointerdown = (e) => { draw = true; mc.setPointerCapture(e.pointerId); paint(e); };
     mc.onpointermove = (e) => { if (draw) paint(e); };
     mc.onpointerup = () => { draw = false; };
-    function localFill() {
-      const s = 0.25, w = Math.floor(ac.width*s), h = Math.floor(ac.height*s);
+
+    // Local Patch-Synthesis Outpainter: extends real art textures outward rather than blurring
+    function localOutpaint() {
+      const s = 0.35, w = Math.floor(ac.width*s), h = Math.floor(ac.height*s);
       const ta = document.createElement("canvas"); ta.width = w; ta.height = h; const tx = ta.getContext("2d"); tx.drawImage(ac,0,0,w,h);
       const tm = document.createElement("canvas"); tm.width = w; tm.height = h; const txm = tm.getContext("2d"); txm.drawImage(mc,0,0,w,h);
-      const id = tx.getImageData(0,0,w,h), md = txm.getImageData(0,0,w,h), d = id.data, m = new Uint8Array(w*h);
-      for (let i=0;i<w*h;i++) m[i] = md.data[i*4+3] > 30 ? 1 : 0;
-      for (let p=0;p<95;p++) {
-        let rem = 0; const nm = new Uint8Array(m);
-        for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) {
-          const i = y*w+x; if (!m[i]) continue; rem++; let r=0,g=0,b=0,c=0;
-          for (const n of [i-1,i+1,i-w,i+w]) if (!m[n]) { r+=d[n*4]; g+=d[n*4+1]; b+=d[n*4+2]; c++; }
-          if (c>0) { d[i*4]=r/c; d[i*4+1]=g/c; d[i*4+2]=b/c; nm[i]=0; }
+      const id = tx.getImageData(0,0,w,h), md = txm.getImageData(0,0,w,h), d = id.data;
+      const m = new Uint8Array(w*h);
+      const valid = [];
+      for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+        const i = y*w+x;
+        m[i] = md.data[i*4+3] > 25 ? 1 : 0;
+        if (!m[i]) valid.push([x,y]);
+      }
+      if (!valid.length) return;
+
+      // Multi-pass directional texture propagation with organic jitter
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+      for (let pass = 0; pass < 260; pass++) {
+        let rem = 0;
+        const nm = new Uint8Array(m);
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const i = y * w + x;
+            if (!m[i]) continue;
+            rem++;
+            let r = 0, g = 0, b = 0, wt = 0;
+            // Sample immediate unmasked neighbors + directional stride for texture continuity
+            for (const [dx, dy] of dirs) {
+              const nx = x + dx, ny = y + dy, ni = ny * w + nx;
+              if (!m[ni]) {
+                const wgt = (dx === 0 || dy === 0) ? 2.0 : 1.0;
+                r += d[ni*4] * wgt; g += d[ni*4+1] * wgt; b += d[ni*4+2] * wgt; wt += wgt;
+              }
+            }
+            if (wt > 0) {
+              // Texture synthesis: pull detail from 3-9px deeper inside known art along same gradient
+              const jx = Math.max(0, Math.min(w-1, x + Math.floor(Math.sin(x*0.37+y*0.19)*6)));
+              const jy = Math.max(0, Math.min(h-1, y + Math.floor(Math.cos(y*0.31+x*0.23)*6)));
+              const ji = jy * w + jx;
+              if (!m[ji]) {
+                r = r * 0.72 + d[ji*4] * (wt * 0.28);
+                g = g * 0.72 + d[ji*4+1] * (wt * 0.28);
+                b = b * 0.72 + d[ji*4+2] * (wt * 0.28);
+              }
+              const grain = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453 % 1) * 5 - 2.5;
+              d[i*4] = Math.max(0, Math.min(255, r / wt + grain));
+              d[i*4+1] = Math.max(0, Math.min(255, g / wt + grain));
+              d[i*4+2] = Math.max(0, Math.min(255, b / wt + grain));
+              nm[i] = 0;
+            }
+          }
         }
-        m.set(nm); if (!rem) break;
+        // Fill outer 1px border frame
+        for (let x=0;x<w;x++){ if(m[x]){const b=w+x;d[x*4]=d[b*4];d[x*4+1]=d[b*4+1];d[x*4+2]=d[b*4+2];nm[x]=0;} const bt=(h-1)*w+x; if(m[bt]){const b=(h-2)*w+x;d[bt*4]=d[b*4];d[bt*4+1]=d[b*4+1];d[bt*4+2]=d[b*4+2];nm[bt]=0;} }
+        for (let y=0;y<h;y++){ const l=y*w; if(m[l]){const b=l+1;d[l*4]=d[b*4];d[l*4+1]=d[b*4+1];d[l*4+2]=d[b*4+2];nm[l]=0;} const rt=y*w+w-1; if(m[rt]){const b=rt-1;d[rt*4]=d[b*4];d[rt*4+1]=d[b*4+1];d[rt*4+2]=d[b*4+2];nm[rt]=0;} }
+        m.set(nm);
+        if (!rem) break;
       }
       tx.putImageData(id,0,0);
+
+      // Feather blend into full resolution canvas
       const om = document.createElement("canvas"); om.width = ac.width; om.height = ac.height;
-      const ox = om.getContext("2d"); ox.filter = "blur(14px)"; ox.drawImage(mc,0,0);
+      const ox = om.getContext("2d"); ox.filter = "blur(10px)"; ox.drawImage(mc,0,0);
       const pt = document.createElement("canvas"); pt.width = ac.width; pt.height = ac.height;
-      const px = pt.getContext("2d"); px.drawImage(ta,0,0,ac.width,ac.height); px.globalCompositeOperation = "destination-in"; px.drawImage(om,0,0);
-      ax.drawImage(pt,0,0); clearM(); genSnap = ax.getImageData(0,0,ac.width,ac.height); st.textContent = "Wallpaper generated!";
+      const px = pt.getContext("2d"); px.drawImage(ta,0,0,ac.width,ac.height);
+      px.globalCompositeOperation = "destination-in"; px.drawImage(om,0,0);
+      ax.drawImage(pt,0,0);
+      clearM();
+      genSnap = ax.getImageData(0,0,ac.width,ac.height);
+      st.textContent = "Outpainted offline! (Add Gemini API key for full AI scene extension)";
     }
+
     async function gen() {
-      if (!img) return; if (orig) ax.putImageData(orig,0,0); st.textContent = "Generating...";
+      if (!img) return;
+      if (orig) ax.putImageData(orig,0,0);
+      st.textContent = eng === "ai" && ki.value.trim() ? "Gemini AI outpainting full wallpaper..." : "Expanding artwork locally...";
       await new Promise(r => setTimeout(r,30));
-      if (eng === "local" || !ki.value.trim()) { localFill(); return; }
+
+      if (eng === "local" || !ki.value.trim()) {
+        localOutpaint();
+        return;
+      }
+
       try {
-        const b64 = ac.toDataURL("image/png").split(",")[1];
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${encodeURIComponent(ki.value.trim())}`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({ contents:[{ parts:[{ text:"Remove all text, numbers, HP, energy symbols, borders, and text boxes from this trading card, and extend the art cleanly to fill the vertical phone wallpaper." },{ inlineData:{ mimeType:"image/png", data:b64 } }] }], generationConfig:{ responseModalities:["IMAGE","TEXT"] } })
+        // Build composite image where masked areas (including dark surround) are punched out to transparent
+        const comp = document.createElement("canvas"); comp.width = ac.width; comp.height = ac.height;
+        const cx = comp.getContext("2d");
+        cx.drawImage(ac, 0, 0);
+        cx.globalCompositeOperation = "destination-out";
+        cx.drawImage(mc, 0, 0);
+        const b64 = comp.toDataURL("image/png").split(",")[1];
+
+        const prompt = "Outpaint and seamlessly expand the trading card's illustration to fill the entire vertical 9:19.5 phone wallpaper from edge to edge. Continue the background environment, lighting, sky, terrain, and artistic brush style naturally into all transparent and empty areas around the card, while completely removing all card borders, text, HP numbers, attack boxes, and UI symbols so it looks like a full-bleed original painting.";
+
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(ki.value.trim())}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: b64 } }] }],
+            generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
+          })
         });
-        const j = await res.json(), ip = j?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-        if (!ip) throw new Error(j?.error?.message || "No image");
-        const oi = new Image(); oi.onload = () => { ax.drawImage(oi,0,0,ac.width,ac.height); clearM(); genSnap = ax.getImageData(0,0,ac.width,ac.height); st.textContent = "Gemini AI wallpaper ready!"; };
+        const j = await res.json();
+        const ip = j?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (!ip) throw new Error(j?.error?.message || "Model returned no image");
+        const oi = new Image();
+        oi.onload = () => {
+          ax.drawImage(oi, 0, 0, ac.width, ac.height);
+          clearM();
+          genSnap = ax.getImageData(0, 0, ac.width, ac.height);
+          st.textContent = "Gemini AI full-screen outpaint complete!";
+        };
         oi.src = "data:" + ip.inlineData.mimeType + ";base64," + ip.inlineData.data;
-      } catch (e) { st.textContent = "AI fallback: " + e.message; localFill(); }
+      } catch (e) {
+        st.textContent = "AI error (" + e.message + ") — ran local outpaint fallback.";
+        localOutpaint();
+      }
     }
-    function dl() { const a = document.createElement("a"); a.download = "pokewall-" + Date.now() + ".png"; a.href = ac.toDataURL("image/png"); a.click(); st.textContent = "Saved PNG!"; }
+
+    function dl() {
+      const a = document.createElement("a");
+      a.download = "pokewall-" + Date.now() + ".png";
+      a.href = ac.toDataURL("image/png");
+      a.click();
+      st.textContent = "Saved PNG to Downloads!";
+    }
+
     sample(0);
   </script>
 </body>
