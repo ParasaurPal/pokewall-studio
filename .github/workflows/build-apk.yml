@@ -29,6 +29,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build
+          mkdir -p .build
           git clone --depth 1 --recurse-submodules https://github.com/leejet/stable-diffusion.cpp.git .build/stable-diffusion.cpp
           cmake -S .build/stable-diffusion.cpp -B .build/sd-android -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
