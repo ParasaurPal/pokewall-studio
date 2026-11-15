@@ -299,15 +299,16 @@
 
         const prompt = "Outpaint and seamlessly expand the trading card's illustration to fill the entire vertical 9:19.5 phone wallpaper from edge to edge. Continue the background environment, lighting, sky, terrain, and artistic brush style naturally into all transparent and empty areas around the card, while completely removing all card borders, text, HP numbers, attack boxes, and UI symbols so it looks like a full-bleed original painting.";
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(ki.value.trim())}`, {
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-goog-api-key": ki.value.trim() },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: b64 } }] }],
             generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
           })
         });
         const j = await res.json();
+        if (!res.ok) throw new Error(j?.error?.message || `HTTP ${res.status}`);
         const ip = j?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
         if (!ip) throw new Error(j?.error?.message || "Model returned no image");
         const oi = new Image();
@@ -319,8 +320,9 @@
         };
         oi.src = "data:" + ip.inlineData.mimeType + ";base64," + ip.inlineData.data;
       } catch (e) {
-        st.textContent = "AI error (" + e.message + ") — ran local outpaint fallback.";
+        const reason = e?.message || "Unknown Gemini API error";
         localOutpaint();
+        st.textContent = "Gemini AI failed: " + reason + ". Local offline result shown instead.";
       }
     }
 
