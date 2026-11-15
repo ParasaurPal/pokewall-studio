@@ -19,6 +19,33 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android NDK and CMake
+        run: sdkmanager "ndk;27.2.12479018" "cmake;3.31.0"
+      - name: Build Stable Diffusion native engine for Android (arm64 CPU)
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          git clone --depth 1 --recurse-submodules https://github.com/leejet/stable-diffusion.cpp.git .build/stable-diffusion.cpp
+          cmake -S .build/stable-diffusion.cpp -B .build/sd-android -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-28 \
+            -DANDROID_STL=c++_static \
+            -DGGML_NATIVE=OFF \
+            -DGGML_OPENMP=OFF \
+            -DSD_WEBP=OFF \
+            -DSD_WEBM=OFF \
+            -DSD_BUILD_EXAMPLES=ON \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build .build/sd-android --target sd-cli --parallel 2
+          mkdir -p android/app/src/main/assets
+          cp .build/sd-android/bin/sd-cli android/app/src/main/assets/sd-cli
+          chmod 755 android/app/src/main/assets/sd-cli
+          file android/app/src/main/assets/sd-cli
       - run: npm install && npx cap sync android
       - name: Build Debug APK
         working-directory: android
