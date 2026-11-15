@@ -42,10 +42,10 @@ jobs:
             -DSD_BUILD_EXAMPLES=ON \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build .build/sd-android --target sd-cli --parallel 2
-          mkdir -p android/app/src/main/assets
-          cp .build/sd-android/bin/sd-cli android/app/src/main/assets/sd-cli
-          chmod 755 android/app/src/main/assets/sd-cli
-          file android/app/src/main/assets/sd-cli
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          cp .build/sd-android/bin/sd-cli android/app/src/main/jniLibs/arm64-v8a/libsd-cli.so
+          chmod 755 android/app/src/main/jniLibs/arm64-v8a/libsd-cli.so
+          file android/app/src/main/jniLibs/arm64-v8a/libsd-cli.so
       - run: npm install && npx cap sync android
       - name: Build Debug APK
         working-directory: android
