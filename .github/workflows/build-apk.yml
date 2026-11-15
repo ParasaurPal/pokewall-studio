@@ -1,8 +1,11 @@
-name: Build Android APK
+name: Build & Release Android APK
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -20,7 +23,12 @@ jobs:
       - name: Build Debug APK
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk PokeWall-Studio.apk
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: pokewall-studio-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v1.0.${{ github.run_number }}
+          name: PokéWall Studio v1.0.${{ github.run_number }}
+          files: PokeWall-Studio.apk
+          make_latest: true
