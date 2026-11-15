@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PokéWall Studio</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    body { background: #0b0f19; color: #f1f5f9; padding-bottom: 24px; }
+    header { padding: 14px 16px; background: #131a2a; border-bottom: 1px solid #25304a; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 1rem; }
+    .badge { font-size: 0.72rem; padding: 3px 8px; border-radius: 99px; background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.35); }
+    main { display: flex; flex-direction: column; gap: 12px; padding: 12px; max-width: 520px; margin: 0 auto; }
+    .preview { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .phone { position: relative; width: 240px; height: 520px; border-radius: 30px; border: 3px solid #334155; overflow: hidden; background: #05070c; touch-action: none; }
+    .phone.r16 { height: 426px; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #maskCanvas { opacity: 0.55; }
+    .lock { position: absolute; inset: 0; pointer-events: none; text-align: center; padding-top: 40px; background: linear-gradient(180deg, rgba(0,0,0,0.35), transparent 35%, transparent 75%, rgba(0,0,0,0.4)); }
+    .lock.hidden { display: none; }
+    .lock b { font-size: 3rem; display: block; line-height: 1; }
+    .lock span { font-size: 0.82rem; opacity: 0.9; }
+    .card { background: #131a2a; border: 1px solid #25304a; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .card h2 { font-size: 0.78rem; text-transform: uppercase; color: #94a3b8; }
+    .row { display: flex; gap: 8px; }
+    button, .file-btn { flex: 1; background: #1e293b; color: #f1f5f9; border: 1px solid #334155; padding: 9px 10px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; text-align: center; cursor: pointer; }
+    button.pri { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    button.ok { background: #10b981; border-color: #10b981; color: #042f2e; }
+    button.on { border-color: #3b82f6; background: rgba(59,130,246,0.22); }
+    input[type="file"] { display: none; }
+    input[type="password"] { width: 100%; background: #0b0f19; border: 1px solid #334155; color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 0.82rem; }
+    label.sl { display: flex; justify-content: space-between; font-size: 0.78rem; color: #94a3b8; }
+    input[type="range"] { width: 100%; accent-color: #3b82f6; }
+    #status { font-size: 0.78rem; color: #94a3b8; text-align: center; }
+  </style>
+</head>
+<body>
+  <header><h1>PokéWall Studio</h1><span class="badge" id="badge">Local Offline</span></header>
+  <main>
+    <div class="preview">
+      <div class="phone" id="phone">
+        <canvas id="artCanvas" width="1080" height="2340"></canvas>
+        <canvas id="maskCanvas" width="1080" height="2340"></canvas>
+        <div class="lock" id="lock"><b>9:41</b><span>Sunday, Nov 15</span></div>
+      </div>
+      <div class="row" style="width:240px;">
+        <button id="cmpBtn">Hold: Original</button>
+        <button id="lockBtn" class="on">Lock UI</button>
+      </div>
+      <div id="status">Ready.</div>
+    </div>
+    <div class="card">
+      <h2>1. Card Image</h2>
+      <label class="file-btn pri">Upload Card Photo<input type="file" id="up" accept="image/*" /></label>
+      <div class="row">
+        <button onclick="sample(0)">Dragon</button>
+        <button onclick="sample(1)">Fox</button>
+        <button onclick="sample(2)">Drake</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>2. Framing</h2>
+      <div class="row">
+        <button id="rTall" class="on" onclick="setR(true)">9:19.5 Pixel</button>
+        <button id="rStd" onclick="setR(false)">9:16</button>
+      </div>
+      <label class="sl"><span>Zoom</span><span id="zV">95%</span></label>
+      <input type="range" id="zR" min="65" max="150" value="95" />
+      <label class="sl"><span>Vertical Shift</span><span id="yV">0%</span></label>
+      <input type="range" id="yR" min="-30" max="30" value="0" />
+    </div>
+    <div class="card">
+      <h2>3. Mask Text & Borders</h2>
+      <div class="row">
+        <button onclick="autoMask()">Auto-Mask UI</button>
+        <button onclick="clearM()">Clear Mask</button>
+      </div>
+      <div class="row">
+        <button id="bM" class="on" onclick="setB('mask')">Mask Brush</button>
+        <button id="bE" onclick="setB('erase')">Protect Brush</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>4. Generate & Save</h2>
+      <div class="row">
+        <button id="eLoc" class="on" onclick="setE('local')">Local Offline</button>
+        <button id="eAi" onclick="setE('ai')">Gemini AI</button>
+      </div>
+      <div id="keyBox" style="display:none; flex-direction:column; gap:6px;">
+        <input type="password" id="keyIn" placeholder="Paste Gemini API Key (AIza...)" />
+        <button onclick="saveK()">Save Key</button>
+      </div>
+      <button class="pri" onclick="gen()">Generate Full-Art Wallpaper</button>
+      <button class="ok" onclick="dl()">Download PNG</button>
+    </div>
+  </main>
+  <script>
+    const ac = document.getElementById("artCanvas"), ax = ac.getContext("2d", { willReadFrequently: true });
+    const mc = document.getElementById("maskCanvas"), mx = mc.getContext("2d", { willReadFrequently: true });
+    const st = document.getElementById("status"), ki = document.getElementById("keyIn");
+    let img = null, orig = null, genSnap = null, bMode = "mask", draw = false, eng = "local", zm = 0.95, oy = 0;
+    ki.value = localStorage.getItem("gemini_api_key") || "";
+    function saveK() { localStorage.setItem("gemini_api_key", ki.value.trim()); st.textContent = "Key saved."; }
+    function setE(m) {
+      eng = m;
+      document.getElementById("eLoc").classList.toggle("on", m === "local");
+      document.getElementById("eAi").classList.toggle("on", m === "ai");
+      document.getElementById("keyBox").style.display = m === "ai" ? "flex" : "none";
+      document.getElementById("badge").textContent = m === "local" ? "Local Offline" : "Gemini AI";
+    }
+    function setR(t) {
+      document.getElementById("phone").classList.toggle("r16", !t);
+      document.getElementById("rTall").classList.toggle("on", t);
+      document.getElementById("rStd").classList.toggle("on", !t);
+      ac.height = mc.height = t ? 2340 : 1920; render(); autoMask();
+    }
+    function setB(m) {
+      bMode = m;
+      document.getElementById("bM").classList.toggle("on", m === "mask");
+      document.getElementById("bE").classList.toggle("on", m === "erase");
+    }
+    document.getElementById("lockBtn").onclick = (e) => { document.getElementById("lock").classList.toggle("hidden"); e.target.classList.toggle("on"); };
+    const cmp = document.getElementById("cmpBtn");
+    cmp.onpointerdown = () => { if (orig) ax.putImageData(orig, 0, 0); };
+    cmp.onpointerup = cmp.onpointerleave = () => { if (genSnap) ax.putImageData(genSnap, 0, 0); };
+    document.getElementById("zR").oninput = (e) => { zm = e.target.value / 100; document.getElementById("zV").textContent = e.target.value + "%"; render(); };
+    document.getElementById("yR").oninput = (e) => { oy = e.target.value / 100; document.getElementById("yV").textContent = e.target.value + "%"; render(); };
+    document.getElementById("up").onchange = (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const i = new Image();
+      i.onload = () => { img = i; render(); autoMask(); st.textContent = "Card loaded."; };
+      i.src = URL.createObjectURL(f);
+    };
+    function sample(n) {
+      const p = [["#0f172a","#38bdf8","#818cf8","ASTRAL DRAGON","HP 320"],["#064e3b","#34d399","#fbbf24","SYLVAN FOX","HP 260"],["#450a0a","#f97316","#facc15","MAGMA DRAKE","HP 300"]][n];
+      const c = document.createElement("canvas"); c.width = 750; c.height = 1050;
+      const x = c.getContext("2d"), g = x.createLinearGradient(0,0,750,1050);
+      g.addColorStop(0,p[0]); g.addColorStop(1,p[1]); x.fillStyle = g; x.fillRect(0,0,750,1050);
+      x.fillStyle = p[2]; x.beginPath(); x.arc(375,360,160,0,Math.PI*2); x.fill();
+      x.strokeStyle = "#e2e8f0"; x.lineWidth = 28; x.strokeRect(14,14,722,1022);
+      x.fillStyle = "rgba(15,23,42,0.75)"; x.fillRect(45,42,660,58); x.fillRect(45,580,660,390);
+      x.fillStyle = "#fff"; x.font = "bold 34px sans-serif"; x.fillText(p[3],65,82); x.fillText(p[4],560,82);
+      x.font = "bold 28px sans-serif"; x.fillText("Celestial Flare  180+",75,650);
+      const i = new Image(); i.onload = () => { img = i; render(); autoMask(); st.textContent = "Loaded " + p[3]; }; i.src = c.toDataURL();
+    }
+    function rect() { const W = ac.width, H = ac.height, cw = W * zm, ch = cw * 1.4; return { cx:(W-cw)/2, cy:(H-ch)/2+(H*oy), cw, ch }; }
+    function render() {
+      const W = ac.width, H = ac.height; ax.fillStyle = "#090d16"; ax.fillRect(0,0,W,H); if (!img) return;
+      const { cx, cy, cw, ch } = rect();
+      ax.save(); ax.filter = "blur(45px) saturate(1.2)"; ax.drawImage(img,-80,-80,W+160,H+160); ax.restore();
+      ax.drawImage(img, cx, cy, cw, ch); orig = ax.getImageData(0,0,W,H); genSnap = null;
+    }
+    function clearM() { mx.clearRect(0,0,mc.width,mc.height); }
+    function autoMask() {
+      clearM(); const W = mc.width, H = mc.height; mx.fillStyle = "#ef4444"; if (!img) return;
+      const { cx, cy, cw, ch } = rect();
+      mx.fillRect(0,0,W,Math.max(0,cy+ch*0.03)); mx.fillRect(0,cy+ch*0.96,W,H);
+      mx.fillRect(0,0,Math.max(0,cx+cw*0.04),H); mx.fillRect(cx+cw*0.96,0,W,H);
+      mx.fillRect(cx+cw*0.04,cy+ch*0.02,cw*0.92,ch*0.085); mx.fillRect(cx+cw*0.04,cy+ch*0.54,cw*0.92,ch*0.43);
+    }
+    function paint(e) {
+      const r = mc.getBoundingClientRect(), x = (e.clientX-r.left)*(mc.width/r.width), y = (e.clientY-r.top)*(mc.height/r.height);
+      mx.globalCompositeOperation = bMode === "mask" ? "source-over" : "destination-out";
+      mx.fillStyle = "#ef4444"; mx.beginPath(); mx.arc(x,y,48,0,Math.PI*2); mx.fill(); mx.globalCompositeOperation = "source-over";
+    }
+    mc.onpointerdown = (e) => { draw = true; mc.setPointerCapture(e.pointerId); paint(e); };
+    mc.onpointermove = (e) => { if (draw) paint(e); };
+    mc.onpointerup = () => { draw = false; };
+    function localFill() {
+      const s = 0.25, w = Math.floor(ac.width*s), h = Math.floor(ac.height*s);
+      const ta = document.createElement("canvas"); ta.width = w; ta.height = h; const tx = ta.getContext("2d"); tx.drawImage(ac,0,0,w,h);
+      const tm = document.createElement("canvas"); tm.width = w; tm.height = h; const txm = tm.getContext("2d"); txm.drawImage(mc,0,0,w,h);
+      const id = tx.getImageData(0,0,w,h), md = txm.getImageData(0,0,w,h), d = id.data, m = new Uint8Array(w*h);
+      for (let i=0;i<w*h;i++) m[i] = md.data[i*4+3] > 30 ? 1 : 0;
+      for (let p=0;p<95;p++) {
+        let rem = 0; const nm = new Uint8Array(m);
+        for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) {
+          const i = y*w+x; if (!m[i]) continue; rem++; let r=0,g=0,b=0,c=0;
+          for (const n of [i-1,i+1,i-w,i+w]) if (!m[n]) { r+=d[n*4]; g+=d[n*4+1]; b+=d[n*4+2]; c++; }
+          if (c>0) { d[i*4]=r/c; d[i*4+1]=g/c; d[i*4+2]=b/c; nm[i]=0; }
+        }
+        m.set(nm); if (!rem) break;
+      }
+      tx.putImageData(id,0,0);
+      const om = document.createElement("canvas"); om.width = ac.width; om.height = ac.height;
+      const ox = om.getContext("2d"); ox.filter = "blur(14px)"; ox.drawImage(mc,0,0);
+      const pt = document.createElement("canvas"); pt.width = ac.width; pt.height = ac.height;
+      const px = pt.getContext("2d"); px.drawImage(ta,0,0,ac.width,ac.height); px.globalCompositeOperation = "destination-in"; px.drawImage(om,0,0);
+      ax.drawImage(pt,0,0); clearM(); genSnap = ax.getImageData(0,0,ac.width,ac.height); st.textContent = "Wallpaper generated!";
+    }
+    async function gen() {
+      if (!img) return; if (orig) ax.putImageData(orig,0,0); st.textContent = "Generating...";
+      await new Promise(r => setTimeout(r,30));
+      if (eng === "local" || !ki.value.trim()) { localFill(); return; }
+      try {
+        const b64 = ac.toDataURL("image/png").split(",")[1];
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${encodeURIComponent(ki.value.trim())}`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ contents:[{ parts:[{ text:"Remove all text, numbers, HP, energy symbols, borders, and text boxes from this trading card, and extend the art cleanly to fill the vertical phone wallpaper." },{ inlineData:{ mimeType:"image/png", data:b64 } }] }], generationConfig:{ responseModalities:["IMAGE","TEXT"] } })
+        });
+        const j = await res.json(), ip = j?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (!ip) throw new Error(j?.error?.message || "No image");
+        const oi = new Image(); oi.onload = () => { ax.drawImage(oi,0,0,ac.width,ac.height); clearM(); genSnap = ax.getImageData(0,0,ac.width,ac.height); st.textContent = "Gemini AI wallpaper ready!"; };
+        oi.src = "data:" + ip.inlineData.mimeType + ";base64," + ip.inlineData.data;
+      } catch (e) { st.textContent = "AI fallback: " + e.message; localFill(); }
+    }
+    function dl() { const a = document.createElement("a"); a.download = "pokewall-" + Date.now() + ".png"; a.href = ac.toDataURL("image/png"); a.click(); st.textContent = "Saved PNG!"; }
+    sample(0);
+  </script>
+</body>
+</html>
