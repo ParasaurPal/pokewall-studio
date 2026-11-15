@@ -42,16 +42,20 @@ public class OfflineAIPlugin extends Plugin {
             HttpURLConnection connection = null;
             try {
                 connection = (HttpURLConnection) new URL(MODEL_URL).openConnection();
+                long existing = partial.exists() ? partial.length() : 0;
                 connection.setConnectTimeout(20000);
                 connection.setReadTimeout(60000);
                 connection.setInstanceFollowRedirects(true);
+                if (existing > 0) connection.setRequestProperty("Range", "bytes=" + existing + "-");
                 connection.connect();
                 int code = connection.getResponseCode();
                 if (code < 200 || code >= 300) throw new IOException("Model download HTTP " + code);
+                if (existing > 0 && code != HttpURLConnection.HTTP_PARTIAL) existing = 0;
                 long total = connection.getContentLengthLong();
-                long done = 0;
+                if (total > 0 && existing > 0) total += existing;
+                long done = existing;
                 try (InputStream in = new BufferedInputStream(connection.getInputStream());
-                     FileOutputStream out = new FileOutputStream(partial)) {
+                     FileOutputStream out = new FileOutputStream(partial, existing > 0)) {
                     byte[] buffer = new byte[1024 * 1024];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
@@ -103,16 +107,8 @@ public class OfflineAIPlugin extends Plugin {
                 writeBase64(maskFile, mask);
                 if (output.exists()) output.delete();
 
-                File executable = new File(getContext().getFilesDir(), "sd-cli");
-                if (!executable.exists()) {
-                    try (InputStream in = getContext().getAssets().open("sd-cli");
-                         FileOutputStream out = new FileOutputStream(executable)) {
-                        byte[] b = new byte[65536]; int n;
-                        while ((n = in.read(b)) != -1) out.write(b, 0, n);
-                    }
-                    executable.setExecutable(true, true);
-                }
-                if (!executable.canExecute()) throw new IOException("Offline inference engine is not installed in this APK.");
+                File executable = new File(getContext().getApplicationInfo().nativeLibraryDir, "libsd-cli.so");
+                if (!executable.exists() || !executable.canExecute()) throw new IOException("Offline inference engine is not installed in this APK.");
 
                 ProcessBuilder pb = new ProcessBuilder(
                     executable.getAbsolutePath(),
@@ -125,7 +121,8 @@ public class OfflineAIPlugin extends Plugin {
                     "--height", "1088",
                     "--steps", "18",
                     "--cfg-scale", "7",
-                    "--strength", "0.98"
+                    "--strength", "0.98",
+                    "--vae-tiling"
                 );
                 pb.directory(work);
                 pb.redirectErrorStream(true);
