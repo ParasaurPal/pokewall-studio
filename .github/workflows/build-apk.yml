@@ -19,10 +19,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - name: Set up Android SDK and NDK
-        uses: android-actions/setup-android@v3
       - name: Install Android NDK and CMake
-        run: sdkmanager "ndk;27.2.12479018" "cmake;3.31.0"
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "cmake;3.31.0"
       - name: Build Stable Diffusion native engine for Android (arm64 CPU)
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
