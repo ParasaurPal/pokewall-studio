@@ -83,8 +83,13 @@
     <div class="card">
       <h2>4. Generate & Save</h2>
       <div class="row">
-        <button id="eLoc" class="on" onclick="setE('local')">Local Offline</button>
+        <button id="eOffline" class="on" onclick="setE('offline')">Offline AI</button>
+        <button id="eLoc" onclick="setE('local')">Local Texture</button>
         <button id="eAi" onclick="setE('ai')">Gemini AI</button>
+      </div>
+      <div id="modelBox" style="display:flex; flex-direction:column; gap:6px;">
+        <button id="modelBtn" onclick="downloadOfflineModel()">Download SD 1.5 Model (2.13 GB)</button>
+        <div id="modelInfo" style="font-size:0.72rem;color:#94a3b8;text-align:center;">Model required once. Generation runs offline after download.</div>
       </div>
       <div id="keyBox" style="display:none; flex-direction:column; gap:6px;">
         <input type="password" id="keyIn" placeholder="Paste Gemini API Key (AIza...)" />
@@ -103,7 +108,8 @@
     ki.value = localStorage.getItem("gemini_api_key") || "";
     document.getElementById("zR").value = 82;
     document.getElementById("zV").textContent = "82%";
-    setE(ki.value.trim() ? "ai" : "local");
+    setE("offline");
+    refreshOfflineModel();
 
     function saveK() {
       localStorage.setItem("gemini_api_key", ki.value.trim());
@@ -113,10 +119,96 @@
 
     function setE(m) {
       eng = m;
+      document.getElementById("eOffline").classList.toggle("on", m === "offline");
       document.getElementById("eLoc").classList.toggle("on", m === "local");
       document.getElementById("eAi").classList.toggle("on", m === "ai");
+      document.getElementById("modelBox").style.display = m === "offline" ? "flex" : "none";
       document.getElementById("keyBox").style.display = m === "ai" ? "flex" : "none";
-      document.getElementById("badge").textContent = m === "local" ? "Local Texture Outpaint" : "Gemini AI Outpaint";
+      document.getElementById("badge").textContent = m === "offline" ? "Offline AI Inpainting" : (m === "local" ? "Local Texture Outpaint" : "Gemini AI Outpaint");
+    }
+
+    function offlinePlugin() {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.OfflineAI;
+    }
+
+    async function refreshOfflineModel() {
+      const api = offlinePlugin();
+      if (!api) {
+        document.getElementById("modelInfo").textContent = "Offline AI runs in the installed Android app.";
+        return;
+      }
+      try {
+        const s = await api.modelStatus();
+        const ready = !!s.installed;
+        document.getElementById("modelBtn").textContent = ready ? "SD 1.5 Model Ready" : "Download SD 1.5 Model (2.13 GB)";
+        document.getElementById("modelBtn").disabled = ready;
+        document.getElementById("modelInfo").textContent = ready ? "Model stored on this phone. Generation works without internet." : "Download once over Wi-Fi. Keep at least 3 GB free.";
+      } catch (e) {
+        document.getElementById("modelInfo").textContent = "Model status unavailable: " + (e.message || e);
+      }
+    }
+
+    async function downloadOfflineModel() {
+      const api = offlinePlugin();
+      if (!api) { st.textContent = "Install the Android APK to download the offline model."; return; }
+      const btn = document.getElementById("modelBtn");
+      btn.disabled = true;
+      btn.textContent = "Starting model download...";
+      try {
+        api.addListener("modelProgress", p => {
+          const pct = p.percent || 0;
+          btn.textContent = "Downloading model: " + pct + "%";
+          document.getElementById("modelInfo").textContent = (p.downloaded / 1073741824).toFixed(2) + " / " + (p.total > 0 ? (p.total / 1073741824).toFixed(2) : "?") + " GB";
+        });
+        await api.downloadModel();
+        btn.textContent = "SD 1.5 Model Ready";
+        document.getElementById("modelInfo").textContent = "Saved on this phone. You can now generate offline.";
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Retry SD 1.5 Model Download";
+        document.getElementById("modelInfo").textContent = e.message || String(e);
+      }
+    }
+
+    async function offlineGenerate() {
+      const api = offlinePlugin();
+      if (!api) throw new Error("Offline AI requires the installed Android APK.");
+      const status = await api.modelStatus();
+      if (!status.installed) throw new Error("Download the SD 1.5 model before generating.");
+      st.textContent = "Preparing image and mask for on-device AI...";
+      const w = 512, h = 1088;
+      const source = document.createElement("canvas"); source.width = w; source.height = h;
+      const sx = source.getContext("2d");
+      sx.fillStyle = "#111827"; sx.fillRect(0, 0, w, h);
+      sx.drawImage(ac, 0, 0, w, h);
+      const maskSource = document.createElement("canvas"); maskSource.width = mc.width; maskSource.height = mc.height;
+      const mctx = maskSource.getContext("2d");
+      const pixels = mx.getImageData(0, 0, mc.width, mc.height);
+      for (let i = 0; i < pixels.data.length; i += 4) {
+        const active = pixels.data[i + 3] > 24;
+        pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = active ? 255 : 0;
+        pixels.data[i + 3] = 255;
+      }
+      mctx.putImageData(pixels, 0, 0);
+      const scaledMask = document.createElement("canvas"); scaledMask.width = w; scaledMask.height = h;
+      scaledMask.getContext("2d").drawImage(maskSource, 0, 0, w, h);
+      st.textContent = "Stable Diffusion 1.5 is generating on your phone. This can take several minutes...";
+      const result = await api.generate({
+        image: source.toDataURL("image/png"),
+        mask: scaledMask.toDataURL("image/png"),
+        prompt: "Continue the original trading card illustration into a seamless full-bleed vertical fantasy wallpaper. Preserve the visible creature and its visual identity. Extend the same environment, colors, lighting, atmosphere, materials and painterly style into every masked area. Remove all card frames, borders, typography, numbers, labels and interface graphics. Create a coherent richly detailed fantasy scene."
+      });
+      const generated = new Image();
+      await new Promise((resolve, reject) => {
+        generated.onload = resolve;
+        generated.onerror = () => reject(new Error("The offline model returned an unreadable image."));
+        generated.src = "data:image/png;base64," + result.image;
+      });
+      ax.clearRect(0, 0, ac.width, ac.height);
+      ax.drawImage(generated, 0, 0, ac.width, ac.height);
+      clearM();
+      genSnap = ax.getImageData(0, 0, ac.width, ac.height);
+      st.textContent = "Offline Stable Diffusion inpainting complete!";
     }
 
     function setR(t) {
@@ -280,13 +372,23 @@
     async function gen() {
       if (!img) return;
       if (orig) ax.putImageData(orig,0,0);
-      st.textContent = eng === "ai" && ki.value.trim() ? "Gemini AI outpainting full wallpaper..." : "Expanding artwork locally...";
-      await new Promise(r => setTimeout(r,30));
-
-      if (eng === "local" || !ki.value.trim()) {
+      if (eng === "offline") {
+        try { await offlineGenerate(); }
+        catch (e) { st.textContent = "Offline AI: " + (e.message || e); }
+        return;
+      }
+      if (eng === "local") {
+        st.textContent = "Expanding artwork locally...";
+        await new Promise(r => setTimeout(r, 30));
         localOutpaint();
         return;
       }
+      if (!ki.value.trim()) {
+        st.textContent = "Enter and save your Gemini API key, or select Offline AI.";
+        return;
+      }
+      st.textContent = "Gemini AI outpainting full wallpaper...";
+      await new Promise(r => setTimeout(r,30));
 
       try {
         // Build composite image where masked areas (including dark surround) are punched out to transparent
